@@ -1,37 +1,45 @@
-import telebot
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+import os
+from dotenv import load_dotenv
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
-BOT_TOKEN = "7764705724:AAE_5U4kt5_iCe0B-m9Z_SRgYhMpS76mpgg"
-ADMIN_USERNAME = "christtfxg"
+load_dotenv()
 
-bot = telebot.TeleBot(BOT_TOKEN)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("Kapcsolatfelvétel 💬"))
-    bot.send_message(message.chat.id,
-                     "Szia! 👋 Ez a Traderz VIP Support bot.
+# Start command handler
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("📈 Napi Szignálok", callback_data="signals")],
+        [InlineKeyboardButton("💬 Ügyfélszolgálat", callback_data="support")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Szia! Válassz egy lehetőséget:", reply_markup=reply_markup)
 
-Ha kérdésed van, kattints a gombra, és felvesszük veled a kapcsolatot!",
-                     reply_markup=markup)
-    notify_admin(f"📥 Új felhasználó indította el a botot:
+# Gombnyomás kezelő
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-👤 @{message.from_user.username or 'Nincs username'}
-🆔 {message.from_user.id}")
+    if query.data == "signals":
+        await query.edit_message_text("📈 Itt kapod majd a legfrissebb Traderz VIP szignálokat!")
+    elif query.data == "support":
+        await query.edit_message_text("💬 Írd le az üzenetedet, és továbbítjuk az adminnak!")
 
-@bot.message_handler(func=lambda message: message.text == "Kapcsolatfelvétel 💬")
-def contact_request(message):
-    bot.send_message(message.chat.id, "Köszönjük! Hamarosan jelentkezünk. 🔔")
-    notify_admin(f"📨 Kapcsolatfelvételi kérés érkezett:
+# Üzenetkezelő (továbbítás adminnak)
+async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.effective_chat.id) != ADMIN_CHAT_ID:
+        msg = f"📩 Új üzenet:\n\n👤 Felhasználó: @{update.effective_user.username or 'Nincs username'}\n🆔 ID: {update.effective_user.id}\n\n💬 Üzenet:\n{update.message.text}"
+        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=msg)
+        await update.message.reply_text("✅ Köszönjük! Az üzenetedet továbbítottuk az adminnak.")
+    else:
+        await update.message.reply_text("⛔ Ez a bot az ügyfelek kiszolgálására készült.")
 
-👤 @{message.from_user.username or 'Nincs username'}
-🆔 {message.from_user.id}")
-
-def notify_admin(text):
-    try:
-        bot.send_message(f"@{ADMIN_USERNAME}", text)
-    except Exception as e:
-        print("Nem sikerült üzenni az adminnak:", e)
-
-bot.polling()
+# Main
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    app.run_polling()
