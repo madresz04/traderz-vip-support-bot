@@ -1,49 +1,38 @@
+import logging
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils import executor
 import os
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
-# Start parancs kezelése
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = user.id
-    username = user.username or "Nincs felhasználónév"
-    
-    # Felhasználónak válasz küldése
-    buttons = [[KeyboardButton("📩 Kérdés küldése")]]
-    markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
-    await update.message.reply_text("Szia! 👋 Miben segíthetünk?", reply_markup=markup)
-    
-    # Admin értesítése
-    await context.bot.send_message(
-        chat_id=ADMIN_ID,
-        text=f"📥 Új felhasználó indította a botot:\n👤 @{username}\n🆔 ID: {user_id}"
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(bot)
+
+@dp.message_handler(commands=["start"])
+async def start_handler(message: types.Message):
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        InlineKeyboardButton("📝 Info", callback_data="info"),
+        InlineKeyboardButton("💬 Support", callback_data="support")
     )
+    await message.answer("Üdvözöllek a Traderz VIP Support botban! 👋\nVálassz egy lehetőséget:", reply_markup=keyboard)
 
-# Gombnyomás (kérdésküldés) kezelése
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = user.id
-    username = user.username or "Nincs felhasználónév"
-    text = update.message.text
+@dp.callback_query_handler(lambda c: True)
+async def callback_handler(callback_query: types.CallbackQuery):
+    data = callback_query.data
 
-    if text == "📩 Kérdés küldése":
-        await update.message.reply_text("Írd be a kérdésed, és a csapatunk hamarosan válaszol! 📨")
-    else:
-        await update.message.reply_text("Köszönjük, továbbítottuk az üzeneted! ✅")
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"💬 Új üzenet érkezett:\n👤 @{username}\n🆔 {user_id}\n📨 Üzenet: {text}"
-        )
+    if data == "info":
+        await bot.send_message(callback_query.from_user.id, "📌 Ez egy automatikus válaszüzenet a Traderz VIP szolgáltatásról. További részletekért fordulj az adminhoz.")
+    elif data == "support":
+        await bot.send_message(callback_query.from_user.id, "🛠 Az admin hamarosan felveszi veled a kapcsolatot.")
 
-# Bot inicializálása
+    await bot.answer_callback_query(callback_query.id)
+
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("Bot elindult...")
-    app.run_polling()
+    executor.start_polling(dp, skip_updates=True)
