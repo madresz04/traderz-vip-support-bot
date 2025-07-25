@@ -3,8 +3,8 @@ services:
     name: traderz-vip-bot
     env: python
     plan: free
-    buildCommand: ""
-    startCommand: "python main.py"
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
     envVars:
       - key: BOT_TOKEN
-        value: "itt-a-tokened"
+        value: 7764705724:AAE_5U4kt5_iCe0B-m9Z_SRgYhMpS76mpgg
