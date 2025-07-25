@@ -1,66 +1,51 @@
 import logging
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.utils import executor
 import os
-from dotenv import load_dotenv
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import BotCommand
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
-# Betöltjük a környezeti változókat
-load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID")
+API_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_SECRET = "supersecretkey"
+WEBHOOK_URL = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_PATH}"
 
-# Inicializáljuk a botot
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
 
-# Naplózás
-logging.basicConfig(level=logging.INFO)
+# Üdvözlő üzenet
+@dp.message(commands=["start"])
+async def start_handler(message: types.Message):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(types.KeyboardButton("✅ Yes, I’ve traded before"))
+    keyboard.add(types.KeyboardButton("❌ No, I’m a beginner"))
+    keyboard.add(types.KeyboardButton("💎 What’s in VIP?"))
+    await message.answer("Welcome to Traderz VIP Bot! 👋", reply_markup=keyboard)
 
-# Üdvözlő üzenet gombokkal
-@dp.message_handler(commands=["start"])
-async def start(message: types.Message):
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    keyboard.add(
-        InlineKeyboardButton(text="✅ Yes, I’ve traded before", callback_data="yes"),
-        InlineKeyboardButton(text="❌ No, I’m completely new", callback_data="no"),
-        InlineKeyboardButton(text="🚀 VIP Info", callback_data="vip")
-    )
+# YES válasz
+@dp.message(lambda msg: msg.text == "✅ Yes, I’ve traded before")
+async def yes_handler(message: types.Message):
+    await message.answer("Awesome! You're one step ahead. 💪")
 
-    await message.answer(
-        "👋 Hey, welcome to Traderz VIP Support!\n\n"
-        "Have you ever traded before?", 
-        reply_markup=keyboard
-    )
+# NO válasz
+@dp.message(lambda msg: msg.text == "❌ No, I’m a beginner")
+async def no_handler(message: types.Message):
+    await message.answer("No worries! We’ll help you from scratch. 🚀")
 
-# Callback-kezelő
-@dp.callback_query_handler(lambda c: c.data in ["yes", "no", "vip"])
-async def handle_callback(callback_query: types.CallbackQuery):
-    data = callback_query.data
+# VIP válasz
+@dp.message(lambda msg: msg.text == "💎 What’s in VIP?")
+async def vip_handler(message: types.Message):
+    await message.answer("VIP gives you access to:\n- Daily signals 📈\n- Private support 💬\n- Strategy sessions 📊")
 
-    if data == "yes":
-        response = "Nice! You're in the right place. Let me show you what we offer. 💼"
-    elif data == "no":
-        response = "No worries at all! We’ve got a full beginners’ guide ready for you. 📘"
-    elif data == "vip":
-        response = (
-            "🚀 VIP Membership gives you:\n"
-            "- Daily trade signals 📈\n"
-            "- 1-on-1 mentorship 🧑‍🏫\n"
-            "- Exclusive community access 👥\n\n"
-            "Type /start again to return to the main menu."
-        )
+# Webhook handler
+async def on_startup(app: web.Application):
+    await bot.set_webhook(url=WEBHOOK_URL, secret_token=WEBHOOK_SECRET)
 
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, response)
+app = web.Application()
+SimpleRequestHandler(dispatcher=dp, bot=bot, secret_token=WEBHOOK_SECRET).register(app, path=WEBHOOK_PATH)
+app.on_startup.append(on_startup)
+setup_application(app, dp, bot=bot)
 
-    # Értesítés az adminnak
-    await bot.send_message(
-        ADMIN_ID,
-        f"📩 {callback_query.from_user.full_name} ({callback_query.from_user.id}) "
-        f"választott: {data.upper()}"
-    )
-
-# Futtatás
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    web.run_app(app, port=10000)
