@@ -1,51 +1,85 @@
+import asyncio
 import logging
-import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import BotCommand
+from aiogram.enums import ParseMode
+from aiogram.filters import Command
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
+import os
 
-API_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_SECRET = "supersecretkey"
-WEBHOOK_URL = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_PATH}"
+# Token és admin ID
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = os.getenv("ADMIN_ID")  # Számként add meg Render Secretben pl. 123456789
 
-bot = Bot(token=API_TOKEN)
+# Gombok
+yes_button = InlineKeyboardButton(text="✅ Yes, I’ve traded before", callback_data="yes")
+no_button = InlineKeyboardButton(text="❌ No, I’m a beginner", callback_data="no")
+vip_button = InlineKeyboardButton(text="💎 VIP Description", callback_data="vip")
+
+keyboard = InlineKeyboardMarkup(inline_keyboard=[[yes_button], [no_button], [vip_button]])
+
+# Logger
+logging.basicConfig(level=logging.INFO)
+
+# Bot és Dispatcher
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
 
-# Üdvözlő üzenet
-@dp.message(commands=["start"])
-async def start_handler(message: types.Message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(types.KeyboardButton("✅ Yes, I’ve traded before"))
-    keyboard.add(types.KeyboardButton("❌ No, I’m a beginner"))
-    keyboard.add(types.KeyboardButton("💎 What’s in VIP?"))
-    await message.answer("Welcome to Traderz VIP Bot! 👋", reply_markup=keyboard)
+# START parancs
+@dp.message(Command("start"))
+async def start_command(message: Message):
+    await message.answer(
+        "Welcome to Traderz VIP Support!\nChoose an option below:",
+        reply_markup=keyboard
+    )
 
-# YES válasz
-@dp.message(lambda msg: msg.text == "✅ Yes, I’ve traded before")
-async def yes_handler(message: types.Message):
-    await message.answer("Awesome! You're one step ahead. 💪")
+# YES
+@dp.message(Command("yes"))
+async def yes_command(message: Message):
+    await message.answer("Great! You're an experienced trader. 🔥")
+    await notify_admin(f"✅ User @{message.from_user.username} ({message.from_user.id}) has traded before.")
 
-# NO válasz
-@dp.message(lambda msg: msg.text == "❌ No, I’m a beginner")
-async def no_handler(message: types.Message):
-    await message.answer("No worries! We’ll help you from scratch. 🚀")
+# NO
+@dp.message(Command("no"))
+async def no_command(message: Message):
+    await message.answer("No worries! We'll guide you step by step. 🧠")
+    await notify_admin(f"❌ User @{message.from_user.username} ({message.from_user.id}) is a beginner.")
 
-# VIP válasz
-@dp.message(lambda msg: msg.text == "💎 What’s in VIP?")
-async def vip_handler(message: types.Message):
-    await message.answer("VIP gives you access to:\n- Daily signals 📈\n- Private support 💬\n- Strategy sessions 📊")
+# VIP
+@dp.message(Command("vip"))
+async def vip_command(message: Message):
+    await message.answer("💎 Our VIP gives you:\n\n✅ Daily Signals\n📊 Market Analysis\n🧠 Trader Support")
+    await notify_admin(f"💎 VIP info was requested by @{message.from_user.username} ({message.from_user.id})")
 
-# Webhook handler
-async def on_startup(app: web.Application):
-    await bot.set_webhook(url=WEBHOOK_URL, secret_token=WEBHOOK_SECRET)
+# CALLBACK KEZELŐ
+@dp.callback_query()
+async def handle_callback(callback: CallbackQuery):
+    data = callback.data
+    user = callback.from_user
 
-app = web.Application()
-SimpleRequestHandler(dispatcher=dp, bot=bot, secret_token=WEBHOOK_SECRET).register(app, path=WEBHOOK_PATH)
-app.on_startup.append(on_startup)
-setup_application(app, dp, bot=bot)
+    if data == "yes":
+        await callback.message.answer("Great! You're an experienced trader. 🔥")
+        await notify_admin(f"✅ User @{user.username} ({user.id}) has traded before.")
+    elif data == "no":
+        await callback.message.answer("No worries! We'll guide you step by step. 🧠")
+        await notify_admin(f"❌ User @{user.username} ({user.id}) is a beginner.")
+    elif data == "vip":
+        await callback.message.answer("💎 Our VIP gives you:\n\n✅ Daily Signals\n📊 Market Analysis\n🧠 Trader Support")
+        await notify_admin(f"💎 VIP info was requested by @{user.username} ({user.id})")
+
+    await callback.answer()
+
+# Admin értesítés
+async def notify_admin(text: str):
+    if ADMIN_ID:
+        try:
+            await bot.send_message(chat_id=int(ADMIN_ID), text=text)
+        except Exception as e:
+            logging.error(f"Failed to send admin message: {e}")
+
+# Fő függvény
+async def main():
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    web.run_app(app, port=10000)
+    asyncio.run(main())
