@@ -1,14 +1,11 @@
-# Használj stabil, támogatott Python verziót, pl 3.11 (ha aiohttp nem működik 3.13-on)
-FROM python:3.11-slim
+FROM python:3.11
 
 WORKDIR /app
 
-# Másold be a projekt fájlokat
-COPY . .
-
-# Frissítsd a pip-et, setuptools-t, wheel-t és telepítsd a függőségeket
-RUN pip install --upgrade pip setuptools wheel
+COPY requirements.txt requirements.txt
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Indítsd el a programot
+COPY . .
+
 CMD ["python", "main.py"]
