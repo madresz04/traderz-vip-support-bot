@@ -1,149 +1,110 @@
 import logging
-import os
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 
-ADMIN_USERNAME = "@christtfxg"
+# --- Állítsd be a TOKEN-t ---
+TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# --- Admin értesítéshez Telegram ID ---
+ADMIN_ID = 123456789  # <- ezt írd át a saját vagy az ügyfél Telegram user ID-jére
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+# --- Gombok ---
+def start_keyboard():
     keyboard = [
-        [KeyboardButton("✅ Yes, I’ve traded before")],
-        [KeyboardButton("❌ No, I’m completely new")]
+        [
+            InlineKeyboardButton("✅ Yes, I’ve traded before", callback_data="yes"),
+            InlineKeyboardButton("❌ No, I’m completely new", callback_data="no")
+        ]
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text(
-        "Hey! 👋 Welcome to the official Traderz Group bot – glad to have you here!
-"
-        "I’m Chris, founder of the group. 🚀
+    return InlineKeyboardMarkup(keyboard)
 
-"
-        "Before we go any further, just a quick question:
+def vip_keyboard(from_callback=False):
+    text = "🔗 Join the VIP Group" if from_callback else "🚀 I want to learn & earn"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(text, callback_data="vip")]
+    ])
 
-"
-        "📊 Have you ever traded on the forex/financial markets?
+# --- Üzenetek ---
+WELCOME_MESSAGE = (
+    "Hey! 👋 Welcome to the official Traderz Group bot – glad to have you here! I’m Chris, founder of the group. 🚀\n\n"
+    "Before we go any further, just a quick question:\n\n"
+    "📊 Have you ever traded on the forex/financial markets?\n👇 Choose one:"
+)
 
-👇 Choose one:",
-        reply_markup=reply_markup
-    )
-    await notify_admin(f"👤 New user started the bot: @{update.effective_user.username}")
+YES_MESSAGE = (
+    "Nice one! 💪 As an experienced trader, you know how much a high-quality entry and a clear plan matter. "
+    "That’s exactly what you’ll get in our *VIP group*:\n\n"
+    "✅ 2–5 premium signals daily\n"
+    "✅ Full entries with SL & TP\n"
+    "✅ XAUUSD and FX PAIRS\n"
+    "✅ Live market updates & analysis\n"
+    "✅ Clean, consistent system\n"
+    "✅ Active, trader-focused community\n\n"
+    "👇 If you’re ready to take it to the next level, start here:"
+)
 
-async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = update.message.text.strip()
-    if "yes" in text.lower():
-        await send_yes_response(update)
-    elif "no" in text.lower():
-        await send_no_response(update)
-    elif "/vip" in text.lower():
-        await send_vip_response(update)
-    else:
-        await update.message.reply_text("Please choose one of the options provided.")
+NO_MESSAGE = (
+    "No worries at all – everyone starts somewhere. 🙏\n\n"
+    "Our *VIP group is not just signals* – it actually teaches you while you earn. Here’s what you’ll get:\n\n"
+    "✅ Easy-to-follow signals with SL & TP\n"
+    "✅ Simple breakdowns of why we enter\n"
+    "✅ Weekly summaries to track your learning\n"
+    "✅ Supportive community – we’ve got your back\n\n"
+    "👇 If that sounds good, let’s get started:"
+)
 
-async def send_yes_response(update: Update) -> None:
-    keyboard = [[KeyboardButton("🔗 Join the VIP Group")]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text(
-        "Nice one! 💪 As an experienced trader, you know how much a high-quality entry and a clear plan matter.
-"
-        "That’s exactly what you’ll get in our *VIP group*:
+VIP_MESSAGE = (
+    "🔥 Ready to level up? The Traderz VIP isn’t just a signal group – it’s a full *trading ecosystem*.\n\n"
+    "🎯 Here’s what’s included:\n"
+    "✅ 2–5 premium signals daily\n"
+    "✅ XAUUSD and FX pairs\n"
+    "✅ Risk management, psychology tips, education\n"
+    "✅ Weekly breakdowns\n"
+    "✅ Direct mentor access\n\n"
+    "💼 How to join:\n"
+    "1️⃣ Register with our trusted broker:\n"
+    "🔗 [https://puvip.co/zqeM7r](https://puvip.co/zqeM7r)\n"
+    "2️⃣ Make a minimum deposit of *350 USD* 💰\n"
+    "You keep full control of your funds – we don’t touch a cent\n"
+    "3️⃣ ✅ *Claim your 50% deposit bonus* – available through this link only\n"
+    "(Only valid for new accounts using our partner link)\n"
+    "4️⃣ Send us your deposit screenshot or account number 📥\n"
+    "We’ll activate your VIP access within minutes!\n\n"
+    "👉 *Start winning yourself. Join VIP today.*"
+)
 
-"
-        "✅ 2–5 premium signals daily
-"
-        "✅ Full entries with SL & TP
-"
-        "✅ XAUUSD and FX PAIRS
-"
-        "✅ Live market updates & analysis
-"
-        "✅ Clean, consistent system
-"
-        "✅ Active, trader-focused community
+# --- Kezelők ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(WELCOME_MESSAGE, reply_markup=start_keyboard())
 
-"
-        "👇 If you’re ready to take it to the next level, start here: /vip",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data
+    user = query.from_user
+    await query.answer()
 
-async def send_no_response(update: Update) -> None:
-    keyboard = [[KeyboardButton("🚀 I want to learn & earn")]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text(
-        "No worries at all – everyone starts somewhere. 🙏
+    # Admin értesítés minden gombra
+    msg = f"👤 @{user.username or user.full_name} ({user.id}) kattintott: /{data}"
+    await context.bot.send_message(chat_id=ADMIN_ID, text=msg)
 
-"
-        "Our VIP group is *not just signals* – it actually teaches you while you earn. Here’s what you’ll get:
+    if data == "yes":
+        await query.edit_message_text(YES_MESSAGE, reply_markup=vip_keyboard(True), parse_mode="Markdown")
+    elif data == "no":
+        await query.edit_message_text(NO_MESSAGE, reply_markup=vip_keyboard(), parse_mode="Markdown")
+    elif data == "vip":
+        await query.edit_message_text(VIP_MESSAGE, parse_mode="Markdown")
 
-"
-        "✅ Easy-to-follow signals with SL & TP
-"
-        "✅ Simple breakdowns of why we enter
-"
-        "✅ Weekly summaries to track your learning
-"
-        "✅ Supportive community – we’ve got your back
+# --- Hibakezelés ---
+async def unknown_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Please use the menu buttons. If you need help, type /start.")
 
-"
-        "👇 If that sounds good, let’s get started: /vip",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
-
-async def send_vip_response(update: Update) -> None:
-    await update.message.reply_text(
-        "🔥 Ready to level up? The Traderz VIP isn’t just a signal group – it’s a full *trading ecosystem*.
-
-"
-        "Daily entries, smart analysis, and a community that grows with you.
-
-"
-        "🎯 Here’s what’s included:
-"
-        "✅ 2–5 premium signals daily
-"
-        "✅ XAUUSD and FX pairs
-"
-        "✅ Risk management, psychology tips, education
-"
-        "✅ Weekly breakdowns
-"
-        "✅ Direct mentor access
-
-"
-        "💼 How to join:
-"
-        "1️⃣ Register with our trusted broker: 🔗 [https://puvip.co/zqeM7r](https://puvip.co/zqeM7r)
-"
-        "2️⃣ Make a minimum deposit of *350 USD* 💰
-"
-        "3️⃣ ✅ *Claim your 50% deposit bonus* – available through this link only
-"
-        "4️⃣ Send us your deposit screenshot or account number 📥
-
-"
-        "Let’s stop watching others win – 👉 *Start winning yourself. Join VIP today.*",
-        parse_mode="Markdown",
-        disable_web_page_preview=True
-    )
-
-async def notify_admin(message: str) -> None:
-    if ADMIN_USERNAME.startswith("@"):
-        logger.info(f"ADMIN: {message}")
-    else:
-        logger.warning("Admin username not set properly.")
-
-def main():
-    token = os.getenv("BOT_TOKEN")
-    if not token:
-        raise ValueError("BOT_TOKEN environment variable not set")
-    app = ApplicationBuilder().token(token).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("vip", send_vip_response))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_response))
-    app.run_polling()
-
+# --- Főfüggvény ---
 if __name__ == "__main__":
-    main()
+    logging.basicConfig(level=logging.INFO)
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_message))
+
+    app.run_polling()
