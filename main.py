@@ -6,7 +6,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Callb
 TOKEN = "7764705724:AAE_5U4kt5_iCe0B-m9ZSRgYhMpS76mpgg"
 
 # --- Admin értesítéshez Telegram ID ---
-ADMIN_ID = 123456789  # <- ezt írd át a saját vagy az ügyfél Telegram user ID-jére
+ADMIN_ID = christtfxg  # <- ezt írd át a saját vagy az ügyfél Telegram user ID-jére
 
 # --- Gombok ---
 def start_keyboard():
