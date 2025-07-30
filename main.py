@@ -3,7 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 
 # --- Állítsd be a TOKEN-t ---
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TOKEN = "7764705724:AAE_5U4kt5_iCe0B-m9ZSRgYhMpS76mpgg"
 
 # --- Admin értesítéshez Telegram ID ---
 ADMIN_ID = 123456789  # <- ezt írd át a saját vagy az ügyfél Telegram user ID-jére
