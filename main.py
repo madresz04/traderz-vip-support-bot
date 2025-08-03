@@ -1,22 +1,11 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from flask import Flask
-import threading
-import os  # hozzáadva, hogy elérjük az env változókat
+from flask import Flask, request
+import os
+import asyncio
 
 # ─────────── BOT TOKEN ───────────
-TOKEN = "7764705724:AAG4IOxxFrsw0-koRyndXjFYnSPbBr72GOA"
-
-# ─────────── FLASK ───────────
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "✅ Bot is running."
-
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))  # Replit által kiosztott port
-    app.run(host="0.0.0.0", port=port)
+TOKEN = os.environ.get("BOT_TOKEN")
 
 # ─────────── TELEGRAM HANDLEREK ───────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -35,8 +24,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()  # azonnal válasz, hogy ne legyen BadRequest
-
+    await query.answer()
     if query.data == "yes":
         keyboard = [[InlineKeyboardButton("🔗 Join the VIP Group", callback_data="vip")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -54,7 +42,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
             reply_markup=reply_markup
         )
-
     elif query.data == "no":
         keyboard = [[InlineKeyboardButton("🚀 I want to learn & earn", callback_data="vip")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -70,7 +57,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
             reply_markup=reply_markup
         )
-
     elif query.data == "vip":
         await query.edit_message_text(
             text=(
@@ -87,7 +73,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🔗 [https://puvip.co/zqeM7r](https://puvip.co/zqeM7r)\n"
                 "2️⃣ Make a minimum deposit of **350 USD** 💰\n"
                 "👉 You keep full control of your funds – we don’t touch a cent\n"
-                "3️⃣ ✅ **Claim your 50% deposit bonus** – available through this link only (Only valid for new accounts using our partner link)\n"
+                "3️⃣ ✅ **Claim your 50% deposit bonus** – available through this link only\n"
                 "4️⃣ Send us your deposit screenshot or account number 📥\n"
                 "We’ll activate your VIP access within minutes!\n\n"
                 "Let’s stop watching others win – 👉 **Start winning yourself. Join VIP today.**"
@@ -95,18 +81,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True
         )
 
-# ─────────── MAIN ───────────
+# ─────────── FLASK + TELEGRAM ───────────
+app = Flask(__name__)
+application = ApplicationBuilder().token(TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(button_handler))
+
+@app.route("/")
+def index():
+    return "✅ Bot is live on Render!"
+
+@app.route(f"/{TOKEN}", methods=["POST"])
+def telegram_webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    asyncio.run(application.process_update(update))
+    return "ok"
+
+# ─────────── RENDER START ───────────
 if __name__ == "__main__":
-    # Flask külön szálon
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.start()
-
-    # Telegram bot
-    application = ApplicationBuilder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
-
-    print("✅ Bot is running.")
-    print("🌐 Webview link (add to UptimeRobot): https://madresz04.traderz-bot.repl.co")
-
-    application.run_polling()
+    port = int(os.environ.get("PORT", 10000))
+    webhook_url = os.environ.get("RENDER_EXTERNAL_URL") + f"/{TOKEN}"
+    asyncio.run(application.bot.set_webhook(webhook_url))
+    app.run(host="0.0.0.0", port=port)
