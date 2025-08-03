@@ -8,6 +8,10 @@ import os
 TOKEN = "7764705724:AAG4IOxxFrsw0-koRyndXjFYnSPbBr72GOA"
 
 # ─────────── FLASK ───────────
+from flask import Flask
+import threading
+import os
+
 app = Flask(__name__)
 
 @app.route("/")
@@ -17,6 +21,12 @@ def home():
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
+# ─────────── START FLASK THREAD ───────────
+flask_thread = threading.Thread(target=run_flask)
+flask_thread.daemon = True
+flask_thread.start()
+
 
 # ─────────── TELEGRAM HANDLEREK ───────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
